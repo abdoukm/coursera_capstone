@@ -1,0 +1,10 @@
+.Rproj.user
+.Rhistory
+.RData
+.Rda
+
+*.log
+*.zip
+
+*.history
+

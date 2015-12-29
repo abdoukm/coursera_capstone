@@ -1,0 +1,256 @@
+---
+title: "Data Science Capstone - Milestone Report"
+author: "Khaled Abdou"
+date: "December 29, 2015"
+output: html_document
+---
+
+# Introduction
+
+This report demonstartes applying fundamentals of data science to  natural language processing. Data extraction, cleaning and text mining the [HC Copora](http://www.corpora.heliohost.org) will be done. The report is a requirement of the data science capstone project of [Coursera](https://www.coursera.org) and [Swiftkey](http://swiftkey.com/). as  frist step to building a prediction application.
+
+
+# Data
+
+The data has four sets of files 
+German : de_DE
+English: en_US 
+Finnish: fi_FI
+Russian : ru_RU 
+Each set has 3 text files with texts from blogs, news and twitter. 
+This analysis we will focus on the english set of files: en_US.blogs.txt, en_US.news.txt, and en_US.twitter.txt
+
+# Data Processing
+
+## Loading Libraries 
+```{r}
+library(RWekajars)
+library(qdapDictionaries)
+library(qdapRegex)
+library(qdapTools)
+library(RColorBrewer)
+library(qdap)
+library(NLP)
+library(tm)
+library(SnowballC)
+library(slam)
+library(RWeka)
+library(rJava)
+library(wordcloud)
+library(stringr)
+library(DT)
+library(stringi)
+library(ggplot2)
+```
+
+
+## 1. Loading The Dataset 
+```{r}
+fileURL <- "http://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+file <- "CourseraSwiftKeyCorporaData.zip"
+if (!file.exists(file)){
+        download.file(fileURL, destfile=file)
+        unlink(fileURL)        
+}
+
+# Unzip data
+if (!dir.exists("./final/en_US")) {
+        unzip(file)
+}
+
+## Load the en_US datasets
+
+blogs <- readLines("./final/en_US/en_US.blogs.txt", 
+                   encoding = "UTF-8", skipNul=TRUE)
+news <- readLines("./final/en_US/en_US.news.txt", 
+                  encoding = "UTF-8", skipNul=TRUE)
+twitter <- readLines("./final/en_US/en_US.twitter.txt", 
+                     encoding = "UTF-8", skipNul=TRUE)
+```
+
+
+## 2. Summary Statistics 
+
+### 2.1. Summary Statistics On Original Files
+```{r}
+blogs_length <- length(blogs)
+news_length <- length(news)
+twitter_length <- length(twitter)
+blogs_file_size <- file.info("./final/en_US/en_US.blogs.txt")$size / 1024.0 / 1024.0
+news_file_size <- file.info("./final/en_US/en_US.news.txt")$size / 1024.0 / 1024.0
+twitter_file_size <- file.info("./final/en_US/en_US.twitter.txt")$size / 1024.0 / 1024.0
+blogs_words <- sum(sapply(gregexpr("\\S+", blogs), length))
+news_words <- sum(sapply(gregexpr("\\S+", news), length))
+twitter_words <- sum(sapply(gregexpr("\\S+", twitter), length))
+```
+
+
+
+
+### 2.2. Generating a random sapmle from all sources
+```{r}
+set.seed(4783)
+twitter_sample <- twitter[sample(1:twitter_length,10000)]
+news_sample <- news[sample(1:news_length,10000)]
+blogs_sample <- blogs[sample(1:blogs_length,10000)]
+all_sample <- c(twitter_sample,news_sample,blogs_sample)
+
+## Save sample
+writeLines(all_sample, "./all_sample.txt")
+## Summary Statistics On sample
+all_sample_size <- file.info("./all_sample.txt")$size / 1024.0 / 1024.0
+all_sample_length <- length(all_sample)
+all_sample_words <- sum(sapply(gregexpr("\\S+", all_sample), length))
+```
+
+
+### 2.3. Combine and report  Summary Statistics of all sources
+```{r}
+summary_of_files <- data.frame(
+        fileName = c("Blogs","News","Twitter", "Combined Sample"),
+        fileSize = c(round(blogs_file_size, digits = 2), 
+                     round(news_file_size,digits = 2), 
+                     round(twitter_file_size, digits = 2),
+                     round(all_sample_size, digits = 2)),
+        lineCount = c(blogs_length, news_length, twitter_length, all_sample_length),
+        wordCount = c(blogs_words, news_words, twitter_words, all_sample_words)                  
+)
+
+colnames(summary_of_files) <- c("File Name", "Size (MB)", "Lines Count", "Words Count")
+saveRDS(summary_of_files, file = "./summary_of_files.Rda")
+summary_df <- readRDS("./summary_of_files.Rda")
+```
+
+## Files Summary Statistics
+```{r}
+summary_df
+```
+
+# Exploratory Analysis
+## Build a clean corpus
+```{r}
+sample_connection <- file("./all_sample.txt")
+sample <- readLines(sample_connection)
+close(sample_connection)
+
+## Read in profanity Words
+profanity_Words <- read.table("./profanity_word_list.txt", header = FALSE)
+
+## Build the corpus, and specify the sample to be source to be character vectors 
+clean_sample <- Corpus(VectorSource(sample))
+rm(sample)
+## Apply tm package
+clean_sample <- tm_map(clean_sample,
+                      content_transformer(function(x) 
+                              iconv(x, to="UTF-8", sub="byte")),
+                      mc.cores=1)
+removeURL <- function(x) gsub("http[[:alnum:]]*", "", x) 
+## Convert all to lower case
+clean_sample <- tm_map(clean_sample, content_transformer(tolower), lazy = TRUE)
+## remove punctions 
+clean_sample <- tm_map(clean_sample, content_transformer(removePunctuation))
+## remove numbers
+clean_sample <- tm_map(clean_sample, content_transformer(removeNumbers))
+## remove URLs
+clean_sample <- tm_map(clean_sample, content_transformer(removeURL))
+## remove white spaces
+clean_sample <- tm_map(clean_sample, stripWhitespace)
+## remove stop words
+clean_sample <- tm_map(clean_sample, removeWords, stopwords("english"))
+## remove profanity words 
+corpusSample <- tm_map(clean_sample, removeWords, as.character(profanity_Words$V1))
+## remove stem  words
+clean_sample <- tm_map(clean_sample, stemDocument)
+
+## Save final corpus
+saveRDS(clean_sample, file = "./final_corpus.RDS")
+final_corpus <- readRDS("./final_corpus.RDS")
+final_corpus_df <-data.frame(text=unlist(sapply(final_corpus,`[`, "content")), 
+                           stringsAsFactors = FALSE)
+```
+
+
+## The N-Gram Tokenization
+This is the tokenization function for processing n-grams
+ngramCount e.g. 1= unigram 2=bigram 3=trigram ...etc.
+Returns top 20 
+
+```{r}
+ngramTokenizer <- function(theCorpus, ngramCount) {
+        ngramFunction <- NGramTokenizer(theCorpus, 
+                                        Weka_control(min = ngramCount, max = ngramCount, 
+                                                     delimiters = " \\r\\n\\t.,;:\"()?!"))
+        ngramFunction <- data.frame(table(ngramFunction))
+        ngramFunction <- ngramFunction[order(ngramFunction$Freq, 
+                                             decreasing = TRUE),][1:20,]
+        colnames(ngramFunction) <- c("String","Count")
+        ngramFunction
+}
+```
+
+
+## Apply Tokenization
+Tokenize the data into sets of 1, 2 and 3 n-grams.
+```{r}
+uni_grams <- ngramTokenizer(final_corpus_df, 1)
+saveRDS(uni_grams, file = "./top_uni_grams.RDS")
+bi_grams <- ngramTokenizer(final_corpus_df, 2)
+saveRDS(bi_grams, file = "./top_bi_grams.RDS")
+tri_grams <- ngramTokenizer(final_corpus_df, 3)
+saveRDS(tri_grams, file = "./top_tri_grams.RDS")
+```
+
+## Top Unigrams
+```{r}
+uni_grams <- readRDS("./top_uni_grams.RDS")
+uni_grams$String <- factor(uni_grams$String, levels = uni_grams[order(uni_grams$Count), "String"])
+p1 <-ggplot(uni_grams, aes(x = String, y = Count)) + 
+        geom_bar(stat = "identity") + coord_flip()  + theme(legend.position = "none") + ggtitle("Plot 1: Top Unigrams")
+plot(p1)
+```
+
+## Top Bigrams
+```{r}
+bi_grams <- readRDS("./top_bi_grams.RDS")
+bi_grams$String <- factor(bi_grams$String, levels = bi_grams[order(bi_grams$Count), "String"])
+
+p2 <-ggplot(bi_grams, aes(x = String, y = Count)) + 
+        geom_bar(stat = "identity") + coord_flip()  + theme(legend.position = "none") + ggtitle("Plot 2: Top Bigrams")
+plot(p2)
+```
+        
+## Top Trigrams
+```{r}
+tri_grams <- readRDS("./top_tri_grams.RDS")
+tri_grams$String <- factor(tri_grams$String, levels = tri_grams[order(tri_grams$Count), "String"])
+
+p3 <-ggplot(tri_grams, aes(x = String, y = Count)) + 
+        geom_bar(stat = "identity") + coord_flip()  + theme(legend.position = "none") + ggtitle("Plot 3: Top Trigrams")
+plot(p3)
+```
+
+
+# Findings
+
++ Data Sampling is very imporatnat as the size of the origional datasets are very large. Draw back is accuracy of the text mining process will suffer.
+
++ Trigram Chart is showing chopped off words , e.g.  *presid barack obama* and *chief execut offi*. Tokinzation needs to be improved.
+
+# Next Steps : The Prediction Application
+
+The next step of the capstone project is to create a prediction application. 
+A shiny application will be created to predict the next word from a user input.
+Application may have an input text box whose text would be the main input to the algorithm. Size of the input to the algorithm maybe limited to up to the last 3 words of the  phrase.
+
+# Code
+
+Code to generate this report is at [repository](https://github.com/abdoukm/coursera_capstone/MilestoneReport).
+
+
+# Session Information
+```{r}
+sessionInfo()
+```
+
+
+
