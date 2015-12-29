@@ -276,8 +276,8 @@ final_corpus_df &lt;-data.frame(text=unlist(sapply(final_corpus,`[`, &quot;conte
         ngramFunction
 }</code></pre>
 </div>
-<div id="apply-tokinization" class="section level2">
-<h2>Apply Tokinization</h2>
+<div id="apply-tokenization" class="section level2">
+<h2>Apply Tokenization</h2>
 <p>Tokenize the data into sets of 1, 2 and 3 n-grams.</p>
 <pre class="r"><code>uni_grams &lt;- ngramTokenizer(final_corpus_df, 1)
 saveRDS(uni_grams, file = &quot;./top_uni_grams.RDS&quot;)
@@ -329,7 +329,7 @@ plot(p3)</code></pre>
 </div>
 <div id="code" class="section level1">
 <h1>Code</h1>
-<p>All used code to generate this report are at <a href="https://github.com/abdoukm/coursera_capstone/MilestoneReport">repository</a>.</p>
+<p>Code to generate this report is at <a href="https://github.com/abdoukm/coursera_capstone/tree/master/MilestoneReport">repository</a>.</p>
 </div>
 <div id="session-information" class="section level1">
 <h1>Session Information</h1>

@@ -244,7 +244,7 @@ Application may have an input text box whose text would be the main input to the
 
 # Code
 
-Code to generate this report is at [repository](https://github.com/abdoukm/coursera_capstone/MilestoneReport).
+Code to generate this report is at [repository](https://github.com/abdoukm/coursera_capstone/tree/master/MilestoneReport).
 
 
 # Session Information
